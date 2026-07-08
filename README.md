@@ -72,7 +72,7 @@ only component that does, and it's independent of this app.
 
 ## Install (no coding required)
 
-1. Download **`Kira Edge.zip`** from the [**latest release**](../../releases/latest).
+1. Download **`Kira-Edge.zip`** from the [**latest release**](../../releases/latest).
 2. **Double-click the download to unzip it** — you'll get an app called **Kira Edge**.
 3. **Drag Kira Edge into your Applications folder.**
 4. **Open it the first time.** Because Kira Edge is free and isn't run through
