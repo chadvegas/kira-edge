@@ -7,7 +7,7 @@ BUNDLE_ID="com.chadvegas.XeneonEdgeWidgets"
 MIN_SYSTEM_VERSION="14.0"
 # Marketing version + build number. Override per-release via env; the build
 # number defaults to a timestamp so every packaged build is monotonic.
-APP_VERSION="${XENEON_VERSION:-1.0.0}"
+APP_VERSION="${XENEON_VERSION:-1.0.1}"
 APP_BUILD="${XENEON_BUILD:-$(date +%Y%m%d%H%M)}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
