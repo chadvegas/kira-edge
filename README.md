@@ -70,12 +70,35 @@ with Stream Deck / shell `xeneonedge://` buttons.
 Kira Edge itself requires **no** Accessibility permission; the touch driver is the
 only component that does, and it's independent of this app.
 
-## Install
+## Install (no coding required)
 
-Grab the notarized DMG from [Releases](../../releases), drag the app to
-Applications, launch. That's it — no permission prompts.
+1. Download **`Kira Edge.zip`** from the [**latest release**](../../releases/latest).
+2. **Double-click the download to unzip it** — you'll get an app called **Kira Edge**.
+3. **Drag Kira Edge into your Applications folder.**
+4. **Open it the first time.** Because Kira Edge is free and isn't run through
+   Apple's (paid) notarization service, macOS blocks the very first launch with a
+   message like *"Apple could not verify 'Kira Edge' is free of malware."* This is
+   expected — you clear it once:
+   - Open the **Apple menu () → System Settings → Privacy & Security**.
+   - Scroll down to **Security**. You'll see *"'Kira Edge' was blocked…"* with an
+     **Open Anyway** button — click it and confirm with Touch ID / your password.
+   - *(On macOS Sonoma or older, you can instead **right-click the app → Open →
+     Open**.)*
 
-## Build from source
+That's a one-time step — after that, Kira Edge opens normally like any app. It
+asks for **no special permissions** (only optional Bluetooth for accessory
+batteries, and optional Google sign-in for calendar).
+
+To put the dashboard on the strip, open Kira Edge and click its **menu-bar icon
+→ Send to Edge** (or press ⌘⇧E). You'll also need a
+[touch-input driver](#touch-input-on-macos) to actually *tap* the panel.
+
+> **Is the warning safe to bypass?** The app is code-signed with a verified Apple
+> Developer ID (Chad Vegas, Team `6S5CDJFSNE`) — macOS just adds an extra prompt
+> for apps that skip paid notarization. If you'd rather not trust a download at
+> all, every line of source is in this repo; build it yourself below.
+
+## Build from source (developers)
 
 ```sh
 git clone https://github.com/chadvegas/kira-edge.git
