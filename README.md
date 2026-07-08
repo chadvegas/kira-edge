@@ -8,8 +8,9 @@ display, and a `xeneonedge://` URL bridge lets a Stream Deck (or any script)
 drive the whole thing.
 
 > **Not affiliated with Corsair.** XENEON is a trademark of Corsair Memory, Inc.
-> This is an independent, unofficial companion app. It complements — and does
-> not replace — Corsair's own Touchscreen Gestures software.
+> This is an independent, unofficial project. Kira Edge only draws the dashboard
+> and responds to clicks — it does **not** provide touch input. On macOS you need
+> a separate touch driver for that (see [Touch input on macOS](#touch-input-on-macos)).
 
 ![The Kira Edge dashboard running on a Corsair XENEON EDGE — Clock, System, Apps, and a web tile](docs/hero.png)
 
@@ -46,7 +47,28 @@ drive the whole thing.
 - macOS 14 or later (Apple Silicon or Intel)
 - Designed for the XENEON EDGE's 2560×720 panel, but runs on any display —
   without an Edge connected the dashboard is a normal resizable window
+- **A macOS touch-input driver to tap the Edge** — see
+  [Touch input on macOS](#touch-input-on-macos) below (not needed if you only
+  drive the dashboard with a mouse or the `xeneonedge://` bridge)
 - A Swift 6.0+ toolchain (Xcode 16 or newer) to build from source
+
+## Touch input on macOS
+
+macOS has **no native support for external USB touchscreens**, and Corsair ships
+no Mac touch driver for the XENEON EDGE. Kira Edge is only the *visual* layer —
+it renders the dashboard and reacts to ordinary mouse clicks. To make tapping the
+panel actually do something, you need a separate utility that reads the Edge's
+HID digitizer and translates touches into macOS pointer clicks and gestures.
+
+[**Touchscreen Gestures**](https://www.touchscreengestures.com/) is the driver
+this project is developed against (it supports Corsair/ELAN/Elo HID digitizers and
+needs Accessibility permission to inject pointer events). With it running, taps on
+the Edge become clicks and the whole dashboard is interactive. Without any touch
+driver, Kira Edge still displays perfectly — you just drive it with a mouse or
+with Stream Deck / shell `xeneonedge://` buttons.
+
+Kira Edge itself requires **no** Accessibility permission; the touch driver is the
+only component that does, and it's independent of this app.
 
 ## Install
 
