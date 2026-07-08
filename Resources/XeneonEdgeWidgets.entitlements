@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Non-sandboxed, hardened-runtime app. The launcher only opens apps via
+      NSWorkspace (no Apple Events / Automation), so no automation entitlement is
+      needed. Bluetooth is TCC-gated at runtime, not via an entitlement, so it is
+      intentionally absent here too — leaving this dict empty.
+    -->
+</dict>
+</plist>

@@ -1,0 +1,18 @@
+.DS_Store
+/.build
+/Packages
+xcuserdata/
+DerivedData/
+dist/
+.swiftpm/configuration/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+
+# Agent/orchestration runtime state
+.omc/
+
+# Logs
+*.log
+
+# Internal design/session archives (never published)
+handoff/
