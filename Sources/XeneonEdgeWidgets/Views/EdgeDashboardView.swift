@@ -30,8 +30,11 @@ struct EdgeDashboardView: View {
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
 
                 if isDrawerVisible {
-                    EdgeHUDView(store: store) {
-                        openSettings()
+                    VStack(spacing: 6) {
+                        EdgeProfileSwitcherView(store: store)
+                        EdgeHUDView(store: store) {
+                            openSettings()
+                        }
                     }
                     .padding(.bottom, padding * 0.55)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -612,6 +615,52 @@ private struct WebTileHeaderControls: View {
                     store.openWebTileExternallyFromEdge(tile)
                 }
             }
+        }
+    }
+}
+
+/// Row of profile chips shown on the Edge when the drawer is revealed, so the
+/// active profile can be switched by touch without leaving the strip. Mirrors
+/// the profile list in the Mac menu bar and the ⌘1–⌘6 shortcuts. Switching
+/// re-reveals the drawer (see `.onChange(of: selectedPreset)`), so the row stays
+/// up long enough to confirm the change or switch again.
+struct EdgeProfileSwitcherView: View {
+    @Bindable var store: DashboardStore
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(DashboardPreset.allCases) { preset in
+                let isActive = store.selectedPreset == preset
+                Button {
+                    store.applyPreset(preset)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: preset.symbolName)
+                            .font(.system(size: 12, weight: .bold))
+                        Text(preset.title)
+                            .font(EdgeTheme.bodyFont(size: 12, weight: .heavy))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 13)
+                    .frame(height: 34)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isActive ? EdgeTheme.overlayText : EdgeTheme.overlaySecondaryText)
+                .background(isActive ? Color.white.opacity(0.20) : EdgeTheme.overlaySubtleFill, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(isActive ? Color.white.opacity(0.30) : EdgeTheme.stroke, lineWidth: 1)
+                }
+                .help("Switch to \(preset.title) profile")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(EdgeTheme.overlayFill, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(.white.opacity(0.18), lineWidth: 1)
         }
     }
 }
