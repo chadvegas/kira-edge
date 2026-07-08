@@ -22,6 +22,22 @@ struct SettingsAdvancedPage: View {
                 }
             }
 
+            SettingsCard {
+                SettingsRow(
+                    symbolName: "eye.slash",
+                    tint: .indigo,
+                    title: "Privacy mode",
+                    subtitle: "Mask device names, IP addresses, and calendar event titles on the dashboard — for screenshots and sharing."
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { store.privacyMode },
+                        set: { store.setPrivacyMode($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                }
+            }
+
             SettingsCard(padding: 16) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionHeader("Selected widget raw fields", subtitle: "Select a widget on the Widgets page to edit its technical options.")

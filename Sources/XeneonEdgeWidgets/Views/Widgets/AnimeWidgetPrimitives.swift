@@ -20,25 +20,26 @@ struct AnimeStatChip: View {
     let value: String
     var symbolName: String?
     var accent: Color?
+    @Environment(\.widgetTextScale) private var textScale
 
     var body: some View {
         HStack(spacing: 7) {
             if let symbolName {
                 Image(systemName: symbolName)
-                    .font(.system(size: 12, weight: .black))
+                    .font(.system(size: 12 * textScale, weight: .black))
                     .foregroundStyle(accent ?? EdgeTheme.secondaryText)
                     .frame(width: 15)
             }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title.uppercased())
-                    .font(EdgeTheme.bodyFont(size: 9, weight: .black))
+                    .font(EdgeTheme.bodyFont(size: 9 * textScale, weight: .black))
                     .tracking(0.7)
                     .foregroundStyle(EdgeTheme.tertiaryText)
                     .lineLimit(1)
 
                 Text(value)
-                    .font(EdgeTheme.bodyFont(size: 12, weight: .heavy))
+                    .font(EdgeTheme.bodyFont(size: 12 * textScale, weight: .heavy))
                     .foregroundStyle(EdgeTheme.primaryText)
                     .monospacedDigit()
                     .lineLimit(1)
@@ -63,16 +64,17 @@ struct AnimeProgressBar: View {
     let value: Double
     let accent: Color
     var trailingText: String?
+    @Environment(\.widgetTextScale) private var textScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(title)
-                    .font(EdgeTheme.bodyFont(size: 13, weight: .black))
+                    .font(EdgeTheme.bodyFont(size: 13 * textScale, weight: .black))
                     .foregroundStyle(EdgeTheme.secondaryText)
                 Spacer()
                 Text(trailingText ?? EdgeFormatters.percent(value))
-                    .font(EdgeTheme.bodyFont(size: 13, weight: .black))
+                    .font(EdgeTheme.bodyFont(size: 13 * textScale, weight: .black))
                     .monospacedDigit()
                     .foregroundStyle(accent)
             }

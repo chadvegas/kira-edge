@@ -89,6 +89,8 @@ struct WidgetTile: Identifiable, Codable, Equatable {
     var customAccentHex: String?
     var isEnabled: Bool
     var web: WebTileConfig?
+    /// Per-widget text-size multiplier (1.0 = default). Used by the System widget.
+    var textScale: Double
 
     init(
         id: UUID = UUID(),
@@ -98,7 +100,8 @@ struct WidgetTile: Identifiable, Codable, Equatable {
         accent: WidgetAccent,
         customAccentHex: String? = nil,
         isEnabled: Bool = true,
-        web: WebTileConfig? = nil
+        web: WebTileConfig? = nil,
+        textScale: Double = 1.0
     ) {
         self.id = id
         self.kind = kind
@@ -108,6 +111,7 @@ struct WidgetTile: Identifiable, Codable, Equatable {
         self.customAccentHex = customAccentHex
         self.isEnabled = isEnabled
         self.web = web
+        self.textScale = textScale
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -119,6 +123,7 @@ struct WidgetTile: Identifiable, Codable, Equatable {
         case customAccentHex
         case isEnabled
         case web
+        case textScale
     }
 
     // Tolerant decode so a single forward-incompatible field degrades to a
@@ -145,6 +150,7 @@ struct WidgetTile: Identifiable, Codable, Equatable {
         customAccentHex = try container.decodeIfPresent(String.self, forKey: .customAccentHex)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         web = try container.decodeIfPresent(WebTileConfig.self, forKey: .web)
+        textScale = try container.decodeIfPresent(Double.self, forKey: .textScale) ?? 1.0
     }
 
     var displayTitle: String {
@@ -500,6 +506,7 @@ struct DashboardProfile: Codable, Equatable {
     var automationMeetingEnabled: Bool?
     var automationMeetingLeadMinutes: Int?
     var automationMeetingPreset: String?
+    var privacyMode: Bool?
 
     init(
         noteText: String,
@@ -522,7 +529,8 @@ struct DashboardProfile: Codable, Equatable {
         forecastRange: String? = nil,
         automationMeetingEnabled: Bool? = nil,
         automationMeetingLeadMinutes: Int? = nil,
-        automationMeetingPreset: String? = nil
+        automationMeetingPreset: String? = nil,
+        privacyMode: Bool? = nil
     ) {
         self.noteText = noteText
         self.isPinned = isPinned
@@ -545,6 +553,7 @@ struct DashboardProfile: Codable, Equatable {
         self.automationMeetingEnabled = automationMeetingEnabled
         self.automationMeetingLeadMinutes = automationMeetingLeadMinutes
         self.automationMeetingPreset = automationMeetingPreset
+        self.privacyMode = privacyMode
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -569,6 +578,7 @@ struct DashboardProfile: Codable, Equatable {
         case automationMeetingEnabled
         case automationMeetingLeadMinutes
         case automationMeetingPreset
+        case privacyMode
     }
 
     init(from decoder: any Decoder) throws {
@@ -598,6 +608,7 @@ struct DashboardProfile: Codable, Equatable {
         automationMeetingEnabled = try container.decodeIfPresent(Bool.self, forKey: .automationMeetingEnabled)
         automationMeetingLeadMinutes = try container.decodeIfPresent(Int.self, forKey: .automationMeetingLeadMinutes)
         automationMeetingPreset = try container.decodeIfPresent(String.self, forKey: .automationMeetingPreset)
+        privacyMode = try container.decodeIfPresent(Bool.self, forKey: .privacyMode)
     }
 
     /// Dynamic string key used to iterate the `pagesByPreset` dictionary

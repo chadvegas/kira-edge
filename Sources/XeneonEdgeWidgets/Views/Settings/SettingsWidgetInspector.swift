@@ -286,6 +286,25 @@ private struct WidgetContentInspector: View {
                 SettingsRow(symbolName: "cpu", tint: tile.accentColor, title: "System stats", subtitle: "CPU, memory, network, disk, and battery are read automatically.") {
                     StatusPill(title: "Live", tint: .green)
                 }
+                SettingsDivider()
+                SettingsRow(symbolName: "textformat.size", tint: tile.accentColor, title: "Text size", subtitle: "Scale the text in this System widget for readability on the Edge.") {
+                    HStack(spacing: 10) {
+                        Text("\(Int((tile.textScale * 100).rounded()))%")
+                            .font(.body.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 46, alignment: .trailing)
+                        Slider(
+                            value: Binding(
+                                get: { tile.textScale },
+                                set: { tile.textScale = $0; store.persist() }
+                            ),
+                            in: 0.8...1.4,
+                            step: 0.05
+                        )
+                        .frame(width: 150)
+                    }
+                }
             case .power:
                 SettingsRow(symbolName: "battery.100percent", tint: tile.accentColor, title: "Device batteries", subtitle: "External device batteries are merged into the System widget.") {
                     StatusPill(title: "\(store.stats.deviceBatteries.count) found", tint: .green)

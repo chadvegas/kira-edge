@@ -36,6 +36,9 @@ final class DashboardStore {
     var appearanceMode: EdgeAppearanceMode = .dark
     var showsFullDayForecast = false
     var uses24HourTime = false
+    /// When on, widgets mask personal data (device owner names, IP addresses,
+    /// calendar event titles) so the dashboard is safe to screenshot or share.
+    var privacyMode = false
     var forecastRange: ForecastRange = .day
     var motionBackdropMode: MotionBackdropMode = .sakura
     var motionTileMaterial: MotionTileMaterial = .frosted
@@ -129,6 +132,7 @@ final class DashboardStore {
         appearanceMode = EdgeAppearanceMode(rawValue: profile.appearanceMode ?? "") ?? .dark
         showsFullDayForecast = profile.showsFullDayForecast ?? false
         uses24HourTime = profile.uses24HourTime ?? false
+        privacyMode = profile.privacyMode ?? false
         forecastRange = ForecastRange(rawValue: profile.forecastRange ?? "") ?? .day
         motionBackdropMode = MotionBackdropMode(rawValue: profile.motionBackdropMode ?? "") ?? MotionBackdropPreferences.default.mode
         motionTileMaterial = MotionTileMaterial(rawValue: profile.motionTileMaterial ?? "") ?? MotionBackdropPreferences.default.tileMaterial
@@ -905,6 +909,11 @@ final class DashboardStore {
         persist()
     }
 
+    func setPrivacyMode(_ value: Bool) {
+        privacyMode = value
+        persist()
+    }
+
     func setForecastRange(_ range: ForecastRange) {
         forecastRange = range
         persist()
@@ -1260,7 +1269,8 @@ final class DashboardStore {
             forecastRange: forecastRange.rawValue,
             automationMeetingEnabled: automationMeetingEnabled,
             automationMeetingLeadMinutes: automationMeetingLeadMinutes,
-            automationMeetingPreset: automationMeetingPreset.rawValue
+            automationMeetingPreset: automationMeetingPreset.rawValue,
+            privacyMode: privacyMode
         )
     }
 

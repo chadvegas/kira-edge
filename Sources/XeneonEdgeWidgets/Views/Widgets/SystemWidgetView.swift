@@ -3,6 +3,8 @@ import SwiftUI
 struct SystemWidgetView: View {
     let snapshot: SystemSnapshot
     let accent: Color
+    @Environment(\.privacyMode) private var privacyMode
+    @Environment(\.widgetTextScale) private var textScale
 
     var body: some View {
         GeometryReader { proxy in
@@ -76,7 +78,7 @@ struct SystemWidgetView: View {
                     if isWide {
                         AnimeStatChip(
                             title: "Public IP",
-                            value: snapshot.publicIPAddress ?? "Unavailable",
+                            value: privacyMode ? PrivacyMask.ip : (snapshot.publicIPAddress ?? "Unavailable"),
                             symbolName: "globe",
                             accent: accent
                         )
@@ -87,7 +89,7 @@ struct SystemWidgetView: View {
                     AnimeWell(padding: 10) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Connected Power")
-                                .font(EdgeTheme.bodyFont(size: 10, weight: .black))
+                                .font(EdgeTheme.bodyFont(size: 10 * textScale, weight: .black))
                                 .tracking(0.8)
                                 .foregroundStyle(EdgeTheme.tertiaryText)
                                 .textCase(.uppercase)
@@ -102,7 +104,7 @@ struct SystemWidgetView: View {
                         Image(systemName: "iphone.gen3")
                         Text("Device batteries appear when macOS exposes them")
                     }
-                    .font(EdgeTheme.bodyFont(size: 11, weight: .bold))
+                    .font(EdgeTheme.bodyFont(size: 11 * textScale, weight: .bold))
                     .foregroundStyle(EdgeTheme.tertiaryText)
                     .lineLimit(1)
                 }
@@ -111,7 +113,7 @@ struct SystemWidgetView: View {
                     AnimeWell(padding: 10) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Top Memory")
-                                .font(EdgeTheme.bodyFont(size: 10, weight: .black))
+                                .font(EdgeTheme.bodyFont(size: 10 * textScale, weight: .black))
                                 .tracking(0.8)
                                 .foregroundStyle(EdgeTheme.tertiaryText)
                                 .textCase(.uppercase)
@@ -119,14 +121,14 @@ struct SystemWidgetView: View {
                             ForEach(snapshot.topProcesses.prefix(3)) { process in
                                 HStack(spacing: 6) {
                                     Text(process.name)
-                                        .font(EdgeTheme.bodyFont(size: 12, weight: .bold))
+                                        .font(EdgeTheme.bodyFont(size: 12 * textScale, weight: .bold))
                                         .foregroundStyle(EdgeTheme.secondaryText)
                                         .lineLimit(1)
 
                                     Spacer()
 
                                     Text(EdgeFormatters.bytes(process.memoryBytes))
-                                        .font(EdgeTheme.bodyFont(size: 12, weight: .heavy))
+                                        .font(EdgeTheme.bodyFont(size: 12 * textScale, weight: .heavy))
                                         .foregroundStyle(EdgeTheme.primaryText)
                                         .lineLimit(1)
                                 }
@@ -137,8 +139,8 @@ struct SystemWidgetView: View {
 
                 Spacer(minLength: 0)
 
-                Label(snapshot.localIPAddress ?? "Offline", systemImage: "network")
-                    .font(EdgeTheme.bodyFont(size: 14, weight: .heavy))
+                Label(privacyMode ? PrivacyMask.ip : (snapshot.localIPAddress ?? "Offline"), systemImage: "network")
+                    .font(EdgeTheme.bodyFont(size: 14 * textScale, weight: .heavy))
                     .foregroundStyle(EdgeTheme.secondaryText)
                     .lineLimit(1)
             }
@@ -173,16 +175,18 @@ struct SystemWidgetView: View {
 private struct DeviceBatteryRow: View {
     let device: DeviceBatterySnapshot
     let accent: Color
+    @Environment(\.privacyMode) private var privacyMode
+    @Environment(\.widgetTextScale) private var textScale
 
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: symbolName)
-                .font(.system(size: 11, weight: .black))
+                .font(.system(size: 11 * textScale, weight: .black))
                 .foregroundStyle(accent)
                 .frame(width: 16)
 
-            Text(device.name)
-                .font(EdgeTheme.bodyFont(size: 12, weight: .bold))
+            Text(privacyMode ? PrivacyMask.deviceName(device.name, kind: device.kind) : device.name)
+                .font(EdgeTheme.bodyFont(size: 12 * textScale, weight: .bold))
                 .foregroundStyle(EdgeTheme.secondaryText)
                 .lineLimit(1)
 
@@ -191,18 +195,18 @@ private struct DeviceBatteryRow: View {
             HStack(spacing: 5) {
                 if device.isCharging == true {
                     Image(systemName: "bolt.fill")
-                        .font(.system(size: 9, weight: .black))
+                        .font(.system(size: 9 * textScale, weight: .black))
                         .foregroundStyle(accent)
                 }
 
                 Text(device.source.title)
-                    .font(EdgeTheme.bodyFont(size: 9, weight: .black))
+                    .font(EdgeTheme.bodyFont(size: 9 * textScale, weight: .black))
                     .foregroundStyle(EdgeTheme.tertiaryText)
                     .textCase(.uppercase)
                     .lineLimit(1)
 
                 Text(EdgeFormatters.percent(device.percent))
-                    .font(EdgeTheme.bodyFont(size: 12, weight: .heavy))
+                    .font(EdgeTheme.bodyFont(size: 12 * textScale, weight: .heavy))
                     .foregroundStyle(EdgeTheme.primaryText)
                     .monospacedDigit()
             }
@@ -227,12 +231,13 @@ private struct SplitMetricBar: View {
     let trailingTitle: String
     let trailingValue: Double
     let accent: Color
+    @Environment(\.widgetTextScale) private var textScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(title)
-                    .font(EdgeTheme.bodyFont(size: 13, weight: .black))
+                    .font(EdgeTheme.bodyFont(size: 13 * textScale, weight: .black))
                     .foregroundStyle(EdgeTheme.secondaryText)
 
                 Spacer()
@@ -242,7 +247,7 @@ private struct SplitMetricBar: View {
                 Text("\(trailingTitle) \(EdgeFormatters.percent(trailingValue))")
                     .foregroundStyle(accent.opacity(0.62))
             }
-            .font(EdgeTheme.bodyFont(size: 11, weight: .black))
+            .font(EdgeTheme.bodyFont(size: 11 * textScale, weight: .black))
             .monospacedDigit()
 
             GeometryReader { proxy in
@@ -270,6 +275,7 @@ private struct SystemGauge: View {
     let value: Double
     let subtitle: String
     let accent: Color
+    @Environment(\.widgetTextScale) private var textScale
 
     var body: some View {
         ZStack {
@@ -283,14 +289,14 @@ private struct SystemGauge: View {
 
             VStack(spacing: 1) {
                 Text(EdgeFormatters.percent(value))
-                    .font(EdgeTheme.displayFont(size: 25, weight: .heavy))
+                    .font(EdgeTheme.displayFont(size: 25 * textScale, weight: .heavy))
                     .foregroundStyle(EdgeTheme.primaryText)
                     .monospacedDigit()
                 Text(title)
-                    .font(EdgeTheme.bodyFont(size: 10, weight: .black))
+                    .font(EdgeTheme.bodyFont(size: 10 * textScale, weight: .black))
                     .foregroundStyle(EdgeTheme.secondaryText)
                 Text(subtitle)
-                    .font(EdgeTheme.bodyFont(size: 9, weight: .bold))
+                    .font(EdgeTheme.bodyFont(size: 9 * textScale, weight: .bold))
                     .foregroundStyle(EdgeTheme.tertiaryText)
                     .lineLimit(1)
             }

@@ -447,6 +447,7 @@ private struct CalendarAgendaRow: View {
     let now: Date
     let accent: Color
     let use24Hour: Bool
+    @Environment(\.privacyMode) private var privacyMode
 
     var body: some View {
         HStack(spacing: 9) {
@@ -454,7 +455,7 @@ private struct CalendarAgendaRow: View {
                 .fill(Color(hexRGB: event.colorHex ?? "") ?? accent)
                 .frame(width: 9, height: 9)
 
-            Text(event.title)
+            Text(privacyMode ? PrivacyMask.eventTitle : event.title)
                 .font(EdgeTheme.bodyFont(size: 13, weight: .heavy))
                 .foregroundStyle(EdgeTheme.primaryText)
                 .lineLimit(1)

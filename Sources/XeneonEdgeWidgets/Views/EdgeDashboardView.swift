@@ -23,6 +23,7 @@ struct EdgeDashboardView: View {
                     ForEach(tiles) { tile in
                         WidgetTileView(tile: tile, store: store)
                             .frame(width: max(120, unitWidth * tile.size.widthWeight), height: availableHeight)
+                            .environment(\.privacyMode, store.privacyMode)
                     }
                 }
                 .padding(padding)
@@ -403,6 +404,7 @@ struct WidgetTileView: View {
                         )
                     case .system:
                         SystemWidgetView(snapshot: store.stats, accent: tile.accentColor)
+                            .environment(\.widgetTextScale, CGFloat(tile.textScale))
                     case .power:
                         PowerWidgetView(snapshot: store.stats, accent: tile.accentColor)
                     case .launcher:
