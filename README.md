@@ -11,7 +11,7 @@ drive the whole thing.
 > This is an independent, unofficial companion app. It complements — and does
 > not replace — Corsair's own Touchscreen Gestures software.
 
-<!-- screenshot: docs/hero.png — dashboard on the Edge -->
+![The Kira Edge dashboard running on a Corsair XENEON EDGE — Clock, System, Apps, and a web tile](docs/hero.png)
 
 ## Widgets
 
