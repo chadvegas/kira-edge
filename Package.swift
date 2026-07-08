@@ -1,5 +1,7 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
+// 6.0 is the floor for `swiftLanguageModes` + the Swift 6 language mode; newer toolchains
+// (including CI's 6.1) build it fine.
 
 import PackageDescription
 

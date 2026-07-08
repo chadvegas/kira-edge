@@ -46,7 +46,7 @@ drive the whole thing.
 - macOS 14 or later (Apple Silicon or Intel)
 - Designed for the XENEON EDGE's 2560×720 panel, but runs on any display —
   without an Edge connected the dashboard is a normal resizable window
-- A Swift 6.3+ toolchain (Xcode 26 or newer) to build from source
+- A Swift 6.0+ toolchain (Xcode 16 or newer) to build from source
 
 ## Install
 
