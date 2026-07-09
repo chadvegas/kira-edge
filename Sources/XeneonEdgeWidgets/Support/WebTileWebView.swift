@@ -62,14 +62,25 @@ struct WebTileWebView: NSViewRepresentable {
     }
 
     private func apply(config: WebTileConfig, to webView: WKWebView) {
-        webView.pageZoom = config.zoom
+        // updateNSView runs on every dashboard re-render (stats tick, clock,
+        // settings edits), so only touch the web view when a value actually
+        // changed — redundant pageZoom/customUserAgent writes force WebKit
+        // relayout/UA work on the main thread and beachballed heavy pages.
+        if webView.pageZoom != config.zoom {
+            webView.pageZoom = config.zoom
+        }
+
         let target = targetURL(for: config)
+        let userAgent: String?
         if usesMobileYouTubeSurface(target) {
-            webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+            userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
         } else if config.usesDesktopUserAgent && !usesGoogleAuthenticationSurface(target) {
-            webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
         } else {
-            webView.customUserAgent = nil
+            userAgent = nil
+        }
+        if webView.customUserAgent != userAgent {
+            webView.customUserAgent = userAgent
         }
     }
 

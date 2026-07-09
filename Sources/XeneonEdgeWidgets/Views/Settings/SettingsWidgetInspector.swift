@@ -478,6 +478,41 @@ private struct CalendarSelectRow: View {
     }
 }
 
+/// URL field that edits a local draft and commits on Enter or focus loss.
+/// Writing through to the store per keystroke made the live WKWebView navigate
+/// to every partial URL ("youtu", "youtub", ...) while typing — on heavy sites
+/// like YouTube that burst of main-thread WebKit work beachballed the app.
+private struct CommittedURLField: View {
+    let placeholder: String
+    @Binding var urlString: String
+    let onCommit: () -> Void
+
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $draft)
+            .focused($isFocused)
+            .onAppear { draft = urlString }
+            .onChange(of: urlString) {
+                // External updates (YouTube mode buttons, profile switch)
+                // always win over an in-progress edit; commit() writes the
+                // same value back, so this is a no-op on our own commits.
+                draft = urlString
+            }
+            .onSubmit { commit() }
+            .onChange(of: isFocused) {
+                if !isFocused { commit() }
+            }
+    }
+
+    private func commit() {
+        guard draft != urlString else { return }
+        urlString = draft
+        onCommit()
+    }
+}
+
 private struct WebContentInspector: View {
     @Binding var tile: WidgetTile
     @Bindable var store: DashboardStore
@@ -485,11 +520,10 @@ private struct WebContentInspector: View {
     var body: some View {
         if let web = Binding($tile.web) {
             SettingsRow(symbolName: "globe", tint: tile.accentColor, title: "Site") {
-                TextField("Website", text: web.urlString)
-                    .frame(width: 300)
-                    .onChange(of: web.wrappedValue.urlString) {
-                        store.persist()
-                    }
+                CommittedURLField(placeholder: "Website", urlString: web.urlString) {
+                    store.persist()
+                }
+                .frame(width: 300)
             }
             SettingsDivider()
             SettingsRow(symbolName: "plus.magnifyingglass", tint: tile.accentColor, title: "Page Scale") {
@@ -610,11 +644,10 @@ struct WidgetAdvancedInspector: View {
         VStack(spacing: 0) {
             if let web = Binding($tile.web) {
                 SettingsRow(symbolName: "link", tint: .gray, title: "Raw web address") {
-                    TextField("URL", text: web.urlString)
-                        .frame(width: 300)
-                        .onChange(of: web.wrappedValue.urlString) {
-                            store.persist()
-                        }
+                    CommittedURLField(placeholder: "URL", urlString: web.urlString) {
+                        store.persist()
+                    }
+                    .frame(width: 300)
                 }
                 SettingsDivider()
                 SettingsRow(symbolName: "clock.arrow.circlepath", tint: .gray, title: "Reload interval") {
