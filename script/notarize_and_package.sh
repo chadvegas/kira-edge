@@ -71,7 +71,11 @@ XENEON_RELEASE=1 XENEON_VERSION="$VERSION" XENEON_CODESIGN_IDENTITY="$SIGN_IDENT
 
 step "Verifying app signature"
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
-codesign -d --verbose=2 "$APP_BUNDLE" 2>&1 | grep -q "flags=.*runtime" \
+# Capture before grepping: `codesign | grep -q` under pipefail races — grep
+# quits at the first match, codesign takes SIGPIPE (141), and the pipeline
+# "fails" even though the runtime flag is present.
+SIGNATURE_INFO="$(codesign -d --verbose=2 "$APP_BUNDLE" 2>&1)"
+grep -q "flags=.*runtime" <<<"$SIGNATURE_INFO" \
   || fail "App is not signed with the hardened runtime."
 KIRA_REQUIRE_NESTED_SIGNATURE=1 "$ROOT_DIR/script/verify_bundle.sh" "$APP_BUNDLE"
 
