@@ -40,12 +40,14 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
     /// thread, and the property is only written on the main actor while a flow is
     /// in progress (set before `session.start()`, cleared after it returns).
     private nonisolated(unsafe) var presentationAnchor: ASPresentationAnchor?
+    private nonisolated let fallbackPresentationAnchor: ASPresentationAnchor
 
     /// In-memory access token cache. Never persisted — only the refresh token is.
     private var cachedAccessToken: String?
     private var accessTokenExpiry: Date?
 
     private override init() {
+        fallbackPresentationAnchor = ASPresentationAnchor()
         super.init()
     }
 
@@ -70,11 +72,13 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
 
         let verifier = Self.makeCodeVerifier()
         let challenge = Self.codeChallenge(for: verifier)
+        let state = Self.makeCodeVerifier()
 
         guard let authURL = Self.makeAuthorizationURL(
             clientID: clientID,
             redirectURI: redirectURI,
-            codeChallenge: challenge
+            codeChallenge: challenge,
+            state: state
         ) else {
             throw GoogleAuthError.invalidAuthorizationURL
         }
@@ -89,6 +93,9 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
         }
 
         let callbackURL = try await presentConsent(authURL: authURL, callbackScheme: scheme)
+        guard Self.isValidCallback(callbackURL, scheme: scheme, state: state) else {
+            throw GoogleAuthError.consentFailed("Invalid Google sign-in callback.")
+        }
         let code = try Self.authorizationCode(from: callbackURL)
 
         let tokens = try await exchangeAuthorizationCode(
@@ -104,8 +111,13 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
             throw GoogleAuthError.missingRefreshToken
         }
 
-        store.write(refreshToken, for: refreshTokenKey)
-        store.write(clientID, for: clientIDKey)
+        guard store.write(refreshToken, for: refreshTokenKey) == errSecSuccess else {
+            throw GoogleAuthError.keychainWriteFailed
+        }
+        guard store.write(clientID, for: clientIDKey) == errSecSuccess else {
+            store.delete(refreshTokenKey)
+            throw GoogleAuthError.keychainWriteFailed
+        }
         cacheAccessToken(tokens.accessToken, expiresIn: tokens.expiresIn)
     }
 
@@ -144,7 +156,9 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
         // response. Persist it so the next refresh uses the current token; otherwise
         // the old token eventually becomes invalid and the connection silently bricks.
         if let rotated = tokens.refreshToken, !rotated.isEmpty {
-            store.write(rotated, for: refreshTokenKey)
+            guard store.write(rotated, for: refreshTokenKey) == errSecSuccess else {
+                throw GoogleAuthError.keychainWriteFailed
+            }
         }
 
         cacheAccessToken(tokens.accessToken, expiresIn: tokens.expiresIn)
@@ -215,10 +229,10 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
     ) -> ASPresentationAnchor {
         // Called by AuthenticationServices on the main thread. Return the anchor
         // resolved on the main actor before the session started; the empty-anchor
-        // fallback only applies if the callback somehow fires outside a flow, and is
-        // built under assumeIsolated since this callback is always on the main thread.
+        // A fallback anchor is created during initialization, so this system callback
+        // never has to synchronously assume the main actor.
         if let presentationAnchor { return presentationAnchor }
-        return MainActor.assumeIsolated { ASPresentationAnchor() }
+        return fallbackPresentationAnchor
     }
 
     // MARK: - Token endpoints
@@ -326,13 +340,15 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
     private nonisolated static func makeAuthorizationURL(
         clientID: String,
         redirectURI: String,
-        codeChallenge: String
+        codeChallenge: String,
+        state: String
     ) -> URL? {
         var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")
         components?.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: clientID),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "scope", value: "https://www.googleapis.com/auth/calendar.readonly"),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
@@ -340,6 +356,14 @@ final class GoogleAuthService: NSObject, ASWebAuthenticationPresentationContextP
             URLQueryItem(name: "prompt", value: "consent")
         ]
         return components?.url
+    }
+
+    private nonisolated static func isValidCallback(_ url: URL, scheme: String, state: String) -> Bool {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let callbackState = components?.queryItems?.first(where: { $0.name == "state" })?.value
+        return components?.scheme?.caseInsensitiveCompare(scheme) == .orderedSame
+            && components?.path == "/oauth2redirect"
+            && callbackState == state
     }
 
     private nonisolated static func authorizationCode(from callbackURL: URL) throws -> String {
@@ -401,6 +425,7 @@ enum GoogleAuthError: LocalizedError {
     case consentFailed(String)
     case missingAuthorizationCode
     case missingRefreshToken
+    case keychainWriteFailed
     case notConnected
     case network(String)
     case tokenRequestFailed(status: Int, message: String?)
@@ -420,6 +445,8 @@ enum GoogleAuthError: LocalizedError {
             return "Google did not return an authorization code."
         case .missingRefreshToken:
             return "Google did not return a refresh token. Try removing the app's access in your Google account and connecting again."
+        case .keychainWriteFailed:
+            return "Could not save the Google connection securely. Check Keychain access and try again."
         case .notConnected:
             return "No Google account is connected."
         case .network(let detail):
@@ -492,7 +519,8 @@ private struct KeychainStore {
         return value
     }
 
-    func write(_ value: String, for account: String) {
+    @discardableResult
+    func write(_ value: String, for account: String) -> OSStatus {
         let data = Data(value.utf8)
         let query = baseQuery(account: account)
 
@@ -505,8 +533,9 @@ private struct KeychainStore {
         if updateStatus == errSecItemNotFound {
             var insert = query
             insert.merge(attributes) { _, new in new }
-            SecItemAdd(insert as CFDictionary, nil)
+            return SecItemAdd(insert as CFDictionary, nil)
         }
+        return updateStatus
     }
 
     func delete(_ account: String) {

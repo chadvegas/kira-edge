@@ -10,7 +10,7 @@ struct DisplayPanelView: View {
                     .font(.title2.weight(.semibold))
                 Spacer()
                 Button {
-                    store.screenStatus = ScreenResolver.targetDescription()
+                    store.refreshScreenParameters()
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -84,10 +84,8 @@ struct DisplayPanelView: View {
                 .padding(12)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
 
-                // Key by positional offset: identical monitors produce byte-identical
-                // summary strings, so `id: \.self` would collide and drop rows.
-                ForEach(Array(ScreenResolver.screenSummaries().enumerated()), id: \.offset) { _, summary in
-                    Label(summary, systemImage: summary.localizedCaseInsensitiveContains("XENEON") ? "display.and.arrow.down" : "display")
+                ForEach(store.screenSummaries) { summary in
+                    Label(summary.title, systemImage: summary.isXeneon ? "display.and.arrow.down" : "display")
                         .font(.system(.body, design: .rounded))
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -31,6 +31,8 @@ struct IconPickerField: View {
             .frame(width: 190)
         }
         .buttonStyle(.bordered)
+        .accessibilityLabel(symbol.isEmpty ? "Choose icon" : "Icon: \(symbol)")
+        .accessibilityHint("Opens the searchable icon picker.")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             popoverBody
         }
@@ -84,6 +86,9 @@ struct IconPickerField: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help(name)
+                                    .accessibilityLabel(name)
+                                    .accessibilityHint("Selects this icon.")
+                                    .accessibilityAddTraits(symbol == name ? .isSelected : [])
                                 }
                             }
                         }

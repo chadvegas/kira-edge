@@ -9,6 +9,7 @@ struct EdgeDrawerHotZone: NSViewRepresentable {
         let view = HotZoneView()
         view.onReveal = onReveal
         view.onHide = onHide
+        view.configureAccessibility()
         return view
     }
 
@@ -24,6 +25,13 @@ struct EdgeDrawerHotZone: NSViewRepresentable {
         private var mouseDownPoint: NSPoint?
 
         override var acceptsFirstResponder: Bool { true }
+
+        func configureAccessibility() {
+            setAccessibilityElement(true)
+            setAccessibilityRole(.button)
+            setAccessibilityLabel("Show dashboard menu")
+            setAccessibilityHelp("Activate to show the dashboard menu. Press Return or Space as an alternative to the edge swipe.")
+        }
 
         override func mouseDown(with event: NSEvent) {
             mouseDownPoint = convert(event.locationInWindow, from: nil)
@@ -62,6 +70,15 @@ struct EdgeDrawerHotZone: NSViewRepresentable {
         override func swipe(with event: NSEvent) {
             if event.deltaY != 0 || event.deltaX != 0 {
                 onReveal?()
+            }
+        }
+
+        override func keyDown(with event: NSEvent) {
+            switch event.keyCode {
+            case 36, 49, 126: // Return, Space, Up Arrow
+                onReveal?()
+            default:
+                super.keyDown(with: event)
             }
         }
     }

@@ -126,6 +126,13 @@ enum SystemStatsReader {
     }
 
     private static func diskSample() async -> DiskSample {
+        // Free-space math changes on minute timescales, and the "important
+        // usage" key costs a CacheDelete XPC round trip; don't pay it per tick.
+        let now = Date()
+        if let cached = await state.cachedDisk(at: now) {
+            return cached
+        }
+
         do {
             let values = try URL(filePath: "/").resourceValues(forKeys: [
                 .volumeAvailableCapacityForImportantUsageKey,
@@ -136,15 +143,18 @@ enum SystemStatsReader {
                 let total = values.volumeTotalCapacity,
                 total > 0
             else {
-                return .empty
+                return await state.updateDisk(.empty, at: now)
             }
-            return DiskSample(
-                used: min(max(1 - Double(available) / Double(total), 0), 1),
-                availableBytes: Int64(available),
-                totalBytes: Int64(total)
+            return await state.updateDisk(
+                DiskSample(
+                    used: min(max(1 - Double(available) / Double(total), 0), 1),
+                    availableBytes: Int64(available),
+                    totalBytes: Int64(total)
+                ),
+                at: now
             )
         } catch {
-            return .empty
+            return await state.updateDisk(.empty, at: now)
         }
     }
 
@@ -277,11 +287,53 @@ enum SystemStatsReader {
     }
 
     private static func localIPAddress() async -> String? {
+        let now = Date()
+        if let cached = await state.cachedLocalIP(at: now) {
+            return cached
+        }
+        return await state.updateLocalIP(readLocalIPv4(), at: now)
+    }
+
+    /// IPv4 of the first preferred interface via getifaddrs, replacing up to
+    /// three /usr/sbin/ipconfig spawns per sample. Same interface priority and
+    /// nil-when-absent behavior as before.
+    private static func readLocalIPv4() -> String? {
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return nil }
+        defer { freeifaddrs(head) }
+
+        var addressByInterface: [String: String] = [:]
+        var cursor: UnsafeMutablePointer<ifaddrs>? = first
+        while let entry = cursor {
+            defer { cursor = entry.pointee.ifa_next }
+            let flags = Int32(entry.pointee.ifa_flags)
+            guard
+                flags & IFF_UP != 0,
+                flags & IFF_LOOPBACK == 0,
+                let address = entry.pointee.ifa_addr,
+                address.pointee.sa_family == sa_family_t(AF_INET)
+            else {
+                continue
+            }
+
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            guard getnameinfo(
+                address,
+                socklen_t(address.pointee.sa_len),
+                &host,
+                socklen_t(host.count),
+                nil,
+                0,
+                NI_NUMERICHOST
+            ) == 0 else {
+                continue
+            }
+            addressByInterface[String(cString: entry.pointee.ifa_name)] = Self.string(fromCStringBuffer: host)
+        }
+
         for interface in ["en0", "en1", "bridge100"] {
-            let output = await run("/usr/sbin/ipconfig", ["getifaddr", interface])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !output.isEmpty {
-                return output
+            if let ip = addressByInterface[interface] {
+                return ip
             }
         }
         return nil
@@ -306,44 +358,122 @@ enum SystemStatsReader {
     }
 
     private static func topProcesses() async -> [ProcessSnapshot] {
-        let output = await run("/bin/sh", ["-c", "ps -axo rss=,comm= | sort -rn | head -5"])
-        return output
-            .components(separatedBy: .newlines)
-            .compactMap { line -> ProcessSnapshot? in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return nil }
-                let parts = trimmed.split(maxSplits: 1, whereSeparator: \.isWhitespace)
-                guard parts.count == 2, let rssKilobytes = Int64(parts[0]) else { return nil }
-                let path = String(parts[1])
-                let name = URL(filePath: path).lastPathComponent
-                return ProcessSnapshot(name: name, memoryBytes: rssKilobytes * 1024)
-            }
+        let now = Date()
+        if let cached = await state.cachedTopProcesses(at: now) {
+            return cached
+        }
+        let processes = readTopProcesses(limit: 5)
+        return await state.updateTopProcesses(processes, at: now)
     }
 
-    private static func run(_ launchPath: String, _ arguments: [String]) async -> String {
+    /// Top memory consumers read in-process via libproc. The previous
+    /// implementation spawned a 4-process shell pipeline (sh, ps, sort, head)
+    /// per sample plus a temp file, which dominated the app's resting CPU.
+    /// proc_pid_rusage can't read other users' processes, so root daemons no
+    /// longer appear; the widget's audience is user apps, which are all visible.
+    static func readTopProcesses(limit: Int) -> [ProcessSnapshot] {
+        let neededBytes = proc_listpids(UInt32(PROC_ALL_PIDS), 0, nil, 0)
+        guard neededBytes > 0 else { return [] }
+
+        // Headroom for processes spawned between the size call and the fill.
+        let capacity = Int(neededBytes) / MemoryLayout<pid_t>.size + 32
+        var pids = [pid_t](repeating: 0, count: capacity)
+        let filledBytes = pids.withUnsafeMutableBytes { raw in
+            proc_listpids(UInt32(PROC_ALL_PIDS), 0, raw.baseAddress, Int32(raw.count))
+        }
+        guard filledBytes > 0 else { return [] }
+
+        var snapshots: [ProcessSnapshot] = []
+        for pid in pids.prefix(Int(filledBytes) / MemoryLayout<pid_t>.size) where pid > 0 {
+            var usage = rusage_info_current()
+            let status = withUnsafeMutablePointer(to: &usage) { pointer in
+                pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
+                    proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, rebound)
+                }
+            }
+            guard status == 0, usage.ri_resident_size > 0 else { continue }
+
+            var nameBuffer = [CChar](repeating: 0, count: 64)
+            guard proc_name(pid, &nameBuffer, UInt32(nameBuffer.count)) > 0 else { continue }
+            snapshots.append(
+                ProcessSnapshot(
+                    name: Self.string(fromCStringBuffer: nameBuffer),
+                    memoryBytes: Int64(usage.ri_resident_size)
+                )
+            )
+        }
+
+        return Array(snapshots.sorted { $0.memoryBytes > $1.memoryBytes }.prefix(limit))
+    }
+
+    private static func string(fromCStringBuffer buffer: [CChar]) -> String {
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    static func run(
+        _ launchPath: String,
+        _ arguments: [String],
+        timeout: TimeInterval = 3
+    ) async -> String {
         await Task.detached(priority: .utility) {
             let process = Process()
             process.executableURL = URL(filePath: launchPath)
             process.arguments = arguments
 
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            // Discard stderr to a sink we never read: a child that writes more
-            // than the pipe buffer (~64 KB) to an undrained stderr pipe would
-            // block forever, and this helper has no timeout.
+            // Use a temporary file for stdout so a helper cannot block on a full
+            // pipe while this task enforces the wall-clock timeout. Output remains
+            // byte-for-byte equivalent for the callers below.
+            let outputURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("xeneon-stats-\(UUID().uuidString).out")
+            guard FileManager.default.createFile(atPath: outputURL.path, contents: nil),
+                  let outputHandle = try? FileHandle(forWritingTo: outputURL)
+            else {
+                return ""
+            }
+            defer {
+                outputHandle.closeFile()
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+
+            process.standardOutput = outputHandle
             process.standardError = FileHandle.nullDevice
 
             do {
                 try process.run()
-                // Drain stdout to EOF BEFORE waiting for exit. Reading after
-                // waitUntilExit() deadlocks if the child fills the pipe buffer
-                // while we are blocked in waitUntilExit().
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                return String(decoding: data, as: UTF8.self)
             } catch {
                 return ""
             }
+
+            let deadline = Date().addingTimeInterval(timeout)
+            while process.isRunning, Date() < deadline {
+                do {
+                    try await Task.sleep(for: .milliseconds(50))
+                } catch {
+                    break
+                }
+            }
+
+            if process.isRunning {
+                process.terminate()
+                let terminationDeadline = Date().addingTimeInterval(0.25)
+                while process.isRunning, Date() < terminationDeadline {
+                    do {
+                        try await Task.sleep(for: .milliseconds(25))
+                    } catch {
+                        break
+                    }
+                }
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                    process.waitUntilExit()
+                }
+            }
+
+            outputHandle.synchronizeFile()
+            outputHandle.closeFile()
+            let data = (try? Data(contentsOf: outputURL)) ?? Data()
+            return String(decoding: data, as: UTF8.self)
         }.value
     }
 }
@@ -356,6 +486,12 @@ private actor SystemStatsState {
     private var publicIPDate: Date?
     private var deviceBatteries: [DeviceBatterySnapshot] = []
     private var deviceBatteriesDate: Date?
+    private var topProcesses: [ProcessSnapshot]?
+    private var topProcessesDate: Date?
+    private var disk: DiskSample?
+    private var diskDate: Date?
+    private var localIP: String?
+    private var localIPDate: Date?
 
     func cpuSample(from current: CPUTicks) -> CPUSample {
         let previous = previousCPU
@@ -423,6 +559,62 @@ private actor SystemStatsState {
             uploadBytesPerSecond: Double(uploadDelta) / interval,
             downloadBytesPerSecond: Double(downloadDelta) / interval
         )
+    }
+
+    // Slow-moving samples are cached here so they don't pay their full cost on
+    // every 3-second tick: the top-process sweep, the disk XPC round trip, and
+    // the interface scan all change on much longer timescales than CPU/network.
+
+    func cachedTopProcesses(at date: Date) -> [ProcessSnapshot]? {
+        guard
+            let topProcesses,
+            let topProcessesDate,
+            date.timeIntervalSince(topProcessesDate) < 15
+        else {
+            return nil
+        }
+        return topProcesses
+    }
+
+    func updateTopProcesses(_ processes: [ProcessSnapshot], at date: Date) -> [ProcessSnapshot] {
+        topProcesses = processes
+        topProcessesDate = date
+        return processes
+    }
+
+    func cachedDisk(at date: Date) -> DiskSample? {
+        guard
+            let disk,
+            let diskDate,
+            date.timeIntervalSince(diskDate) < 30
+        else {
+            return nil
+        }
+        return disk
+    }
+
+    func updateDisk(_ sample: DiskSample, at date: Date) -> DiskSample {
+        disk = sample
+        diskDate = date
+        return sample
+    }
+
+    /// Double optional: `.some(nil)` is a cached "no address" result, `nil`
+    /// means the cache is cold.
+    func cachedLocalIP(at date: Date) -> String?? {
+        guard
+            let localIPDate,
+            date.timeIntervalSince(localIPDate) < 60
+        else {
+            return nil
+        }
+        return .some(localIP)
+    }
+
+    func updateLocalIP(_ ip: String?, at date: Date) -> String? {
+        localIP = ip
+        localIPDate = date
+        return ip
     }
 
     func cachedPublicIP(at date: Date) -> String? {

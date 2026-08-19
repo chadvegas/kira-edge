@@ -72,11 +72,11 @@ struct SettingsDisplayPage: View {
 
             SettingsCard {
                 SettingsRow(symbolName: "display", tint: .indigo, title: "Edge screen", subtitle: store.screenStatus) {
-                    HStack {
-                        Button {
-                            store.screenStatus = ScreenResolver.targetDescription()
-                        } label: {
-                            Label("Identify", systemImage: "scope")
+                        HStack {
+                            Button {
+                            store.refreshScreenParameters()
+                            } label: {
+                                Label("Identify", systemImage: "scope")
                         }
                         Button {
                             store.moveToEdge()
@@ -87,19 +87,16 @@ struct SettingsDisplayPage: View {
                     }
                 }
                 SettingsDivider()
-                // Key by positional offset: identical monitors produce byte-identical
-                // summary strings, so `id: \.self` would collide and drop rows.
-                let summaries = ScreenResolver.screenSummaries()
-                ForEach(Array(summaries.enumerated()), id: \.offset) { index, summary in
+                ForEach(Array(store.screenSummaries.enumerated()), id: \.element.id) { index, summary in
                     SettingsRow(
-                        symbolName: summary.localizedCaseInsensitiveContains("XENEON") ? "display.and.arrow.down" : "display",
-                        tint: summary.localizedCaseInsensitiveContains("XENEON") ? .green : .secondary,
-                        title: summary,
+                        symbolName: summary.isXeneon ? "display.and.arrow.down" : "display",
+                        tint: summary.isXeneon ? .green : .secondary,
+                        title: summary.title,
                         subtitle: nil
                     ) {
                         EmptyView()
                     }
-                    if index < summaries.count - 1 {
+                    if index < store.screenSummaries.count - 1 {
                         SettingsDivider()
                     }
                 }

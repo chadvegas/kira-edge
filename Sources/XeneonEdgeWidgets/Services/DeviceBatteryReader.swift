@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import IOKit
 
@@ -615,10 +616,23 @@ enum DeviceBatteryReader {
             process.executableURL = URL(filePath: launchPath)
             process.arguments = arguments
 
-            let outputPipe = Pipe()
-            process.standardOutput = outputPipe
-            // Discard stderr at the kernel level so a child writing a large volume
-            // to stderr cannot block on a pipe nobody is draining.
+            // Capture stdout in a temporary file instead of a pipe. A blocking
+            // `readDataToEndOfFile()` can defeat a wall-clock timeout when a helper
+            // produces no output, while an undrained pipe can deadlock a chatty
+            // helper. The file preserves the complete output without either risk.
+            let outputURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("xeneon-helper-\(UUID().uuidString).out")
+            guard FileManager.default.createFile(atPath: outputURL.path, contents: nil),
+                  let outputHandle = try? FileHandle(forWritingTo: outputURL)
+            else {
+                return ""
+            }
+            defer {
+                outputHandle.closeFile()
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+
+            process.standardOutput = outputHandle
             process.standardError = FileHandle.nullDevice
 
             do {
@@ -627,31 +641,34 @@ enum DeviceBatteryReader {
                 return ""
             }
 
-            // Drain stdout incrementally while the process runs so the child never
-            // blocks writing into a full pipe buffer (the documented Foundation
-            // pipe-buffer deadlock). availableData returns whatever is buffered and
-            // returns empty only at EOF; reading on this same task keeps the
-            // non-Sendable Pipe/FileHandle off any concurrency boundary.
-            let readHandle = outputPipe.fileHandleForReading
-            var data = Data()
-
             let deadline = Date().addingTimeInterval(timeout)
-            while process.isRunning && Date() < deadline {
-                let chunk = readHandle.availableData
-                if chunk.isEmpty {
-                    try? await Task.sleep(for: .milliseconds(50))
-                } else {
-                    data.append(chunk)
+            while process.isRunning, Date() < deadline {
+                do {
+                    try await Task.sleep(for: .milliseconds(50))
+                } catch {
+                    break
                 }
             }
 
             if process.isRunning {
                 process.terminate()
-                process.waitUntilExit()
+                let terminationDeadline = Date().addingTimeInterval(0.25)
+                while process.isRunning, Date() < terminationDeadline {
+                    do {
+                        try await Task.sleep(for: .milliseconds(25))
+                    } catch {
+                        break
+                    }
+                }
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                    process.waitUntilExit()
+                }
             }
 
-            // Read any remaining buffered output after the process has exited.
-            data.append(readHandle.readDataToEndOfFile())
+            outputHandle.synchronizeFile()
+            outputHandle.closeFile()
+            let data = (try? Data(contentsOf: outputURL)) ?? Data()
             return String(decoding: data, as: UTF8.self)
         }.value
     }

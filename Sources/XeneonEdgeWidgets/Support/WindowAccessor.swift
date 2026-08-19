@@ -4,21 +4,30 @@ import SwiftUI
 struct WindowAccessor: NSViewRepresentable {
     var onResolve: (NSWindow) -> Void
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                onResolve(window)
-            }
-        }
+    func makeNSView(context: Context) -> WindowAccessorView {
+        let view = WindowAccessorView()
+        view.onResolve = onResolve
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            if let window = nsView.window {
-                onResolve(window)
-            }
-        }
+    func updateNSView(_ nsView: WindowAccessorView, context: Context) {
+        nsView.onResolve = onResolve
+        nsView.resolveWindowIfNeeded()
+    }
+}
+
+final class WindowAccessorView: NSView {
+    var onResolve: ((NSWindow) -> Void)?
+    private weak var resolvedWindow: NSWindow?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        resolveWindowIfNeeded()
+    }
+
+    func resolveWindowIfNeeded() {
+        guard let window, resolvedWindow !== window else { return }
+        resolvedWindow = window
+        onResolve?(window)
     }
 }

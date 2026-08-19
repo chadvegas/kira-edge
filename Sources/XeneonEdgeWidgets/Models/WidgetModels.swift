@@ -9,6 +9,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     case launcher
     case note
     case web
+    case media
 
     var id: String { rawValue }
 
@@ -20,6 +21,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .launcher: "Apps"
         case .note: "Note"
         case .web: "Web"
+        case .media: "Now Playing"
         }
     }
 
@@ -31,6 +33,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .launcher: "square.grid.2x2"
         case .note: "text.alignleft"
         case .web: "globe"
+        case .media: "music.note"
         }
     }
 
@@ -202,10 +205,20 @@ struct DashboardPage: Identifiable, Codable, Equatable {
 }
 
 struct WebTileConfig: Codable, Equatable {
+    static let minimumReloadInterval: TimeInterval = 5
+    static let maximumReloadInterval: TimeInterval = 24 * 60 * 60
+
     var title: String
     var urlString: String
     var zoom: Double
-    var reloadInterval: TimeInterval
+    var reloadInterval: TimeInterval {
+        didSet {
+            let clamped = Self.clampedReloadInterval(reloadInterval)
+            if reloadInterval != clamped {
+                reloadInterval = clamped
+            }
+        }
+    }
     var usesDesktopUserAgent: Bool
     var injectsReadableCSS: Bool
 
@@ -220,7 +233,7 @@ struct WebTileConfig: Codable, Equatable {
         self.title = title
         self.urlString = urlString
         self.zoom = zoom
-        self.reloadInterval = reloadInterval
+        self.reloadInterval = Self.clampedReloadInterval(reloadInterval)
         self.usesDesktopUserAgent = usesDesktopUserAgent
         self.injectsReadableCSS = injectsReadableCSS
     }
@@ -241,17 +254,30 @@ struct WebTileConfig: Codable, Equatable {
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         urlString = try container.decodeIfPresent(String.self, forKey: .urlString) ?? ""
         zoom = try container.decodeIfPresent(Double.self, forKey: .zoom) ?? 0.8
-        reloadInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .reloadInterval) ?? 0
+        reloadInterval = Self.clampedReloadInterval(
+            try container.decodeIfPresent(TimeInterval.self, forKey: .reloadInterval) ?? 0
+        )
         usesDesktopUserAgent = try container.decodeIfPresent(Bool.self, forKey: .usesDesktopUserAgent) ?? true
         injectsReadableCSS = try container.decodeIfPresent(Bool.self, forKey: .injectsReadableCSS) ?? false
     }
 
     var url: URL? {
-        if let direct = URL(string: urlString), direct.scheme != nil {
-            return direct
-        }
+        let candidate = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return nil }
 
-        return URL(string: "https://\(urlString)")
+        let normalized = candidate.contains("://") ? candidate : "https://\(candidate)"
+        guard let direct = URL(string: normalized),
+              let scheme = direct.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              direct.host != nil else {
+            return nil
+        }
+        return direct
+    }
+
+    static func clampedReloadInterval(_ value: TimeInterval) -> TimeInterval {
+        guard value > 0 else { return 0 }
+        return min(max(value, minimumReloadInterval), maximumReloadInterval)
     }
 }
 
@@ -665,6 +691,7 @@ struct DashboardProfile: Codable, Equatable {
         try container.encodeIfPresent(automationMeetingEnabled, forKey: .automationMeetingEnabled)
         try container.encodeIfPresent(automationMeetingLeadMinutes, forKey: .automationMeetingLeadMinutes)
         try container.encodeIfPresent(automationMeetingPreset, forKey: .automationMeetingPreset)
+        try container.encodeIfPresent(privacyMode, forKey: .privacyMode)
     }
 }
 
@@ -747,6 +774,33 @@ struct ProcessSnapshot: Identifiable, Equatable {
     var id: String { name }
     var name: String
     var memoryBytes: Int64
+}
+
+struct HarnessUsageWindow: Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var usedPercent: Double?
+    var resetsAt: Date?
+    var resetDescription: String?
+}
+
+struct HarnessUsageEntry: Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var windows: [HarnessUsageWindow]
+    var status: String?
+}
+
+struct HarnessUsageSnapshot: Equatable, Sendable {
+    var entries: [HarnessUsageEntry]
+    var retrievedAt: Date?
+    var status: String
+
+    static let empty = HarnessUsageSnapshot(
+        entries: [],
+        retrievedAt: nil,
+        status: "Checking usage"
+    )
 }
 
 struct WeatherSnapshot: Equatable {

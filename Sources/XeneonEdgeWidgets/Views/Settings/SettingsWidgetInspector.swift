@@ -282,6 +282,32 @@ private struct WidgetContentInspector: View {
                     .foregroundStyle(tile.accentColor)
                     .help("Open Launcher")
                 }
+            case .media:
+                SettingsRow(symbolName: "music.note", tint: tile.accentColor, title: "Now Playing", subtitle: "Shows whatever is playing system-wide: Music, Spotify, browsers, and more. No permissions needed.") {
+                    StatusPill(
+                        title: store.nowPlayingHelperAvailable ? "Live" : "Helper missing",
+                        tint: store.nowPlayingHelperAvailable ? .green : .orange
+                    )
+                }
+                SettingsDivider()
+                SettingsRow(symbolName: "textformat.size", tint: tile.accentColor, title: "Text size", subtitle: "Scale the text in this widget for readability on the Edge.") {
+                    HStack(spacing: 10) {
+                        Text("\(Int((tile.textScale * 100).rounded()))%")
+                            .font(.body.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 46, alignment: .trailing)
+                        Slider(
+                            value: Binding(
+                                get: { tile.textScale },
+                                set: { tile.textScale = $0; store.persist() }
+                            ),
+                            in: 0.8...1.4,
+                            step: 0.05
+                        )
+                        .frame(width: 150)
+                    }
+                }
             case .system:
                 SettingsRow(symbolName: "cpu", tint: tile.accentColor, title: "System stats", subtitle: "CPU, memory, network, disk, and battery are read automatically.") {
                     StatusPill(title: "Live", tint: .green)

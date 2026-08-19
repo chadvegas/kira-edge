@@ -157,6 +157,15 @@ extension WidgetCatalogItem {
             accent: .coral
         ),
         native(
+            id: "now-playing",
+            title: "Now Playing",
+            subtitle: "Playback controls",
+            symbolName: "music.note",
+            kind: .media,
+            size: .wide,
+            accent: .violet
+        ),
+        native(
             id: "note",
             title: "Note",
             subtitle: "Pinned text",

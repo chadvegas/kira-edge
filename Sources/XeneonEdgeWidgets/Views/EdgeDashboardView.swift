@@ -17,12 +17,23 @@ struct EdgeDashboardView: View {
             let availableHeight = max(1, proxy.size.height - padding * 2)
             let totalWeight = max(tiles.reduce(CGFloat(0)) { $0 + $1.size.widthWeight }, 1)
             let unitWidth = availableWidth / totalWeight
+            let minimumTileWidth = min(
+                120,
+                max(72, availableWidth / CGFloat(max(tiles.count, 1)) * 0.8)
+            )
+            let naturalTileWidths = tiles.map { tile in
+                max(minimumTileWidth, unitWidth * tile.size.widthWeight)
+            }
+            let naturalWidthTotal = naturalTileWidths.reduce(0, +)
+            let tileWidthScale = naturalWidthTotal > availableWidth
+                ? availableWidth / naturalWidthTotal
+                : 1
 
             ZStack(alignment: .bottom) {
                 HStack(spacing: spacing) {
-                    ForEach(tiles) { tile in
+                    ForEach(Array(tiles.enumerated()), id: \.offset) { index, tile in
                         WidgetTileView(tile: tile, store: store)
-                            .frame(width: max(120, unitWidth * tile.size.widthWeight), height: availableHeight)
+                            .frame(width: naturalTileWidths[index] * tileWidthScale, height: availableHeight)
                             .environment(\.privacyMode, store.privacyMode)
                     }
                 }
@@ -89,7 +100,6 @@ struct EdgeDashboardView: View {
                 }
             }
             .environment(\.colorScheme, store.appearanceMode.resolvedColorScheme(system: systemColorScheme))
-            .simultaneousGesture(drawerGesture(screenHeight: proxy.size.height))
             .onChange(of: store.selectedPreset) {
                 showDrawerTemporarily()
             }
@@ -108,17 +118,6 @@ struct EdgeDashboardView: View {
         openWindow(id: "widget-settings")
         store.placeSettingsWindowOnMainDisplaySoon()
         NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func drawerGesture(screenHeight: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 18)
-            .onEnded { value in
-                if value.startLocation.y > screenHeight - 96, value.translation.height < -24 {
-                    showDrawerTemporarily(duration: .seconds(5))
-                } else if isDrawerVisible, value.translation.height > 24 {
-                    hideDrawer()
-                }
-            }
     }
 
     private func showDrawerTemporarily(duration: Duration = .seconds(3)) {
@@ -181,6 +180,9 @@ struct EdgeDrawerRevealStrip: View {
             }
             .buttonStyle(.plain)
             .padding(.bottom, 7)
+            .accessibilityLabel(isDrawerVisible ? "Hide dashboard menu" : "Show dashboard menu")
+            .accessibilityHint(isDrawerVisible ? "Hides the menu controls." : "Shows profiles and dashboard controls.")
+            .accessibilityAddTraits(isDrawerVisible ? .isSelected : [])
         }
         .frame(width: 154, height: 76, alignment: .bottom)
         .contentShape(Rectangle())
@@ -217,7 +219,11 @@ struct EdgeMuteOverlayView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .contentShape(Rectangle())
-        .onTapGesture {
+        .onTapGesture { dismiss() }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Muted")
+        .accessibilityHint("Activates to dismiss the muted overlay and return to the dashboard.")
+        .accessibilityAction(named: "Dismiss muted overlay") {
             dismiss()
         }
     }
@@ -294,6 +300,8 @@ struct EdgeFloatingCircleButton: View {
         }
         .shadow(color: .black.opacity(0.30), radius: 16, y: 6)
         .help(helpText)
+        .accessibilityLabel(helpText)
+        .accessibilityHint("Activates this dashboard control.")
     }
 }
 
@@ -313,6 +321,8 @@ struct EdgeMiniPillButton: View {
         .foregroundStyle(EdgeTheme.overlayText)
         .background(EdgeTheme.overlaySubtleFill, in: Circle())
         .help(helpText)
+        .accessibilityLabel(helpText)
+        .accessibilityHint("Activates this dashboard control.")
     }
 }
 
@@ -369,9 +379,15 @@ struct WidgetTileView: View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
-                    IconChip(symbolName: tile.kind.symbolName, accent: tile.accentColor)
+                    // A launcher tile swapped to the in-place player gets the
+                    // player's header so it doesn't keep reading APPS.
+                    let isMediaSwapped = store.mediaSwapTileID == tile.id
+                    IconChip(
+                        symbolName: isMediaSwapped ? WidgetKind.media.symbolName : tile.kind.symbolName,
+                        accent: tile.accentColor
+                    )
 
-                    Text(tile.displayTitle.uppercased())
+                    Text((isMediaSwapped ? WidgetKind.media.title : tile.displayTitle).uppercased())
                         .font(EdgeTheme.bodyFont(size: 13, weight: .black))
                         .tracking(1.65)
                         .foregroundStyle(EdgeTheme.secondaryText)
@@ -406,16 +422,45 @@ struct WidgetTileView: View {
                             setForecastRange: { store.setForecastRange($0) }
                         )
                     case .system:
-                        SystemWidgetView(snapshot: store.stats, accent: tile.accentColor)
+                        SystemWidgetView(
+                            snapshot: store.stats,
+                            harnessUsage: store.harnessUsage,
+                            accent: tile.accentColor
+                        )
                             .environment(\.widgetTextScale, CGFloat(tile.textScale))
                     case .power:
                         PowerWidgetView(snapshot: store.stats, accent: tile.accentColor)
                     case .launcher:
-                        LauncherWidgetView(items: store.launchers, accent: tile.accentColor) { item in
-                            store.openLauncher(item)
+                        // Opening a music app swaps this tile to the player in
+                        // place; the grid comes back via the player's apps button.
+                        if store.mediaSwapTileID == tile.id {
+                            MediaWidgetView(
+                                snapshot: store.nowPlaying,
+                                accent: tile.accentColor,
+                                helperAvailable: store.nowPlayingHelperAvailable,
+                                onPlayPause: { store.mediaTogglePlayPause() },
+                                onNext: { store.mediaNextTrack() },
+                                onPrevious: { store.mediaPreviousTrack() },
+                                onShowLauncher: { store.restoreLauncherFromMediaSwap() }
+                            )
+                            .environment(\.widgetTextScale, CGFloat(tile.textScale))
+                        } else {
+                            LauncherWidgetView(items: store.launchers, accent: tile.accentColor) { item in
+                                store.openLauncher(item, from: tile)
+                            }
                         }
                     case .note:
                         NoteWidgetView(text: store.noteText, accent: tile.accentColor)
+                    case .media:
+                        MediaWidgetView(
+                            snapshot: store.nowPlaying,
+                            accent: tile.accentColor,
+                            helperAvailable: store.nowPlayingHelperAvailable,
+                            onPlayPause: { store.mediaTogglePlayPause() },
+                            onNext: { store.mediaNextTrack() },
+                            onPrevious: { store.mediaPreviousTrack() }
+                        )
+                        .environment(\.widgetTextScale, CGFloat(tile.textScale))
                     case .web:
                         if let config = tile.web {
                             WebWidgetView(
@@ -446,6 +491,13 @@ struct WidgetTileView: View {
             TileContextMenuItems(tile: tile, store: store) {
                 openSettings()
             }
+        }
+        .accessibilityHint("Use the Actions menu for focus and widget settings.")
+        .accessibilityAction(named: "Focus widget") {
+            store.toggleFocusFromEdge(tile)
+        }
+        .accessibilityAction(named: "Open widget settings") {
+            openSettings()
         }
     }
 
@@ -653,6 +705,9 @@ struct EdgeProfileSwitcherView: View {
                         .stroke(isActive ? Color.white.opacity(0.30) : EdgeTheme.stroke, lineWidth: 1)
                 }
                 .help("Switch to \(preset.title) profile")
+                .accessibilityLabel("\(preset.title) profile")
+                .accessibilityHint("Switches the dashboard to this profile.")
+                .accessibilityAddTraits(isActive ? .isSelected : [])
             }
         }
         .padding(.horizontal, 8)
@@ -967,6 +1022,9 @@ struct EdgeHUDButton: View {
                 .stroke(isActive ? .white.opacity(0.28) : EdgeTheme.stroke, lineWidth: 1)
         }
         .help(helpText)
+        .accessibilityLabel(helpText)
+        .accessibilityHint("Activates this dashboard control.")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }
 
@@ -1008,6 +1066,8 @@ struct EdgeTileControlButton: View {
                 .stroke(.white.opacity(0.13), lineWidth: 1)
         }
         .help(helpText)
+        .accessibilityLabel(helpText)
+        .accessibilityHint("Activates this widget control.")
     }
 }
 

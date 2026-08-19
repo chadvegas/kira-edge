@@ -59,26 +59,39 @@ struct ClockWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help(showsFullDayForecast ? "Hide forecast" : "Show forecast")
+                .accessibilityLabel(showsFullDayForecast ? "Hide forecast" : "Show forecast")
+                .accessibilityHint("Expands or collapses the weather forecast.")
+                .accessibilityAddTraits(showsFullDayForecast ? .isSelected : [])
             }
 
-            if showsFullDayForecast {
-                ExpandedForecastView(
-                    weather: weather,
-                    accent: accent,
-                    range: forecastRange,
-                    setRange: setForecastRange
-                )
-            }
+            // The tile height is fixed by the dashboard. Expanded forecast,
+            // calendar, and agenda content can exceed it, so keep the clock
+            // header pinned and let the lower content scroll instead of being
+            // clipped by the tile's rounded shape.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 13) {
+                    if showsFullDayForecast {
+                        ExpandedForecastView(
+                            weather: weather,
+                            accent: accent,
+                            range: forecastRange,
+                            setRange: setForecastRange
+                        )
+                    }
 
-            if calendarConnected {
-                CalendarMonthView(date: date, events: events, accent: accent)
-            }
+                    if calendarConnected {
+                        CalendarMonthView(date: date, events: events, accent: accent)
+                    }
 
-            if !upcomingEvents.isEmpty {
-                CalendarAgendaView(events: upcomingEvents, now: date, accent: accent, use24Hour: use24Hour)
+                    if !upcomingEvents.isEmpty {
+                        CalendarAgendaView(events: upcomingEvents, now: date, accent: accent, use24Hour: use24Hour)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 4)
             }
-
-            Spacer(minLength: 4)
+            .scrollIndicators(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
             HStack(spacing: 7) {
                 ForEach(0..<24, id: \.self) { hour in
@@ -189,6 +202,7 @@ private struct CalendarMonthView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
@@ -242,6 +256,12 @@ private struct CompactWeatherSummary: View {
                     .font(EdgeTheme.displayFont(size: 27, weight: .heavy))
                     .monospacedDigit()
                     .foregroundStyle(EdgeTheme.primaryText)
+
+                Text("Feels \(EdgeFormatters.temperature(weather.apparentTemperature))")
+                    .font(EdgeTheme.bodyFont(size: 10, weight: .black))
+                    .foregroundStyle(accent)
+                    .monospacedDigit()
+                    .lineLimit(1)
 
                 Text("\(EdgeFormatters.temperature(weather.highTemperature)) / \(EdgeFormatters.temperature(weather.lowTemperature))")
                     .font(EdgeTheme.bodyFont(size: 11, weight: .black))
@@ -298,8 +318,17 @@ private struct ExpandedForecastView: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(option == range ? accent : EdgeTheme.secondaryText)
+                            .accessibilityLabel("Forecast range: \(option.title)")
+                            .accessibilityHint("Shows the \(option.title.lowercased()) forecast.")
+                            .accessibilityAddTraits(option == range ? .isSelected : [])
                         }
                     }
+                }
+
+                HStack(spacing: 8) {
+                    WeatherChip(title: "Feels Like", value: EdgeFormatters.temperature(weather.apparentTemperature))
+                    WeatherChip(title: "High", value: EdgeFormatters.temperature(weather.highTemperature))
+                    WeatherChip(title: "Low", value: EdgeFormatters.temperature(weather.lowTemperature))
                 }
 
                 forecastRows

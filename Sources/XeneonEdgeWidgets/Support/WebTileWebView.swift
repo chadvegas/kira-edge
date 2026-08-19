@@ -1,6 +1,16 @@
 import SwiftUI
 import WebKit
 
+private func isAllowedWebNavigationURL(_ url: URL?) -> Bool {
+    guard let url,
+          let scheme = url.scheme?.lowercased(),
+          scheme == "http" || scheme == "https",
+          url.host != nil else {
+        return false
+    }
+    return true
+}
+
 struct WebTileWebView: NSViewRepresentable {
     let config: WebTileConfig
     let reloadToken: Int
@@ -25,6 +35,7 @@ struct WebTileWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         context.coordinator.forcesMobileYouTube = forcesMobileYouTube(for: config)
+        context.coordinator.injectsReadableCSS = config.injectsReadableCSS
         context.coordinator.lastRequestedURL = targetURL(for: config)
         context.coordinator.lastReloadToken = reloadToken
         webView.allowsBackForwardNavigationGestures = true
@@ -39,6 +50,7 @@ struct WebTileWebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.forcesMobileYouTube = forcesMobileYouTube(for: config)
+        context.coordinator.injectsReadableCSS = config.injectsReadableCSS
         context.coordinator.webView = webView
         context.coordinator.configureReloadTimer(interval: config.reloadInterval)
         apply(config: config, to: webView)
@@ -451,6 +463,7 @@ struct WebTileWebView: NSViewRepresentable {
         var lastReloadToken = 0
         var lastRequestedURL: URL?
         var forcesMobileYouTube = false
+        var injectsReadableCSS = false
 
         weak var webView: WKWebView?
         private var reloadTimer: Timer?
@@ -467,7 +480,7 @@ struct WebTileWebView: NSViewRepresentable {
             guard interval > 0 else { return }
 
             reloadTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated {
+                Task { @MainActor [weak self] in
                     _ = self?.webView?.reload()
                 }
             }
@@ -484,6 +497,11 @@ struct WebTileWebView: NSViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
         ) {
+            guard isAllowedWebNavigationURL(navigationAction.request.url) else {
+                decisionHandler(.cancel)
+                return
+            }
+
             if
                 forcesMobileYouTube,
                 let url = navigationAction.request.url,
@@ -552,18 +570,23 @@ struct WebTileWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            let css = """
-            if (!document.getElementById('xeneon-readable-style')) {
-              const style = document.createElement('style');
-              style.id = 'xeneon-readable-style';
-              style.innerHTML = `
-                html, body { overscroll-behavior: contain; }
-                video { max-width: 100% !important; }
-              `;
-              document.head.appendChild(style);
+            let script: String
+            if injectsReadableCSS {
+                script = """
+                if (!document.getElementById('xeneon-readable-style')) {
+                  const style = document.createElement('style');
+                  style.id = 'xeneon-readable-style';
+                  style.innerHTML = `
+                    html, body { overscroll-behavior: contain; }
+                    video { max-width: 100% !important; }
+                  `;
+                  document.head.appendChild(style);
+                }
+                """
+            } else {
+                script = "document.getElementById('xeneon-readable-style')?.remove();"
             }
-            """
-            webView.evaluateJavaScript(css, completionHandler: nil)
+            webView.evaluateJavaScript(script, completionHandler: nil)
         }
     }
 }

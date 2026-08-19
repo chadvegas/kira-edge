@@ -208,7 +208,7 @@ private struct EdgeStatusPill: View {
     var body: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(store.screenStatus.localizedCaseInsensitiveContains("not found") ? Color.orange : Color.green)
+                .fill(statusColor)
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -229,10 +229,26 @@ private struct EdgeStatusPill: View {
     }
 
     private var edgeStatusTitle: String {
-        if store.screenStatus.localizedCaseInsensitiveContains("XENEON") {
-            return "Edge connected · 2560x720"
+        if store.screenStatus.hasPrefix("On ") {
+            return "Edge connected"
         }
-        return "Edge status · \(store.screenStatus)"
+        if store.screenStatus.localizedCaseInsensitiveContains("not found") {
+            return "Edge not found"
+        }
+        if store.screenStatus == "XENEON not checked" {
+            return "Edge status · Not checked"
+        }
+        return "Edge detected · \(store.screenStatus)"
+    }
+
+    private var statusColor: Color {
+        if store.screenStatus.hasPrefix("On ") {
+            return .green
+        }
+        if store.screenStatus.localizedCaseInsensitiveContains("not found") {
+            return .orange
+        }
+        return .secondary
     }
 }
 

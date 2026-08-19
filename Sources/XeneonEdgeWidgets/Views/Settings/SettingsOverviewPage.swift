@@ -71,23 +71,36 @@ struct SettingsOverviewPage: View {
     }
 
     private var edgeStatus: String {
-        store.screenStatus.localizedCaseInsensitiveContains("not found") ? "Open on Mac" : "Edge connected"
+        if edgeConnected { return "Edge connected" }
+        if store.screenStatus.localizedCaseInsensitiveContains("not found") {
+            return "Open on Mac"
+        }
+        if store.screenStatus == "XENEON not checked" {
+            return "Not checked"
+        }
+        return "Edge detected"
     }
 
     private var edgeTint: Color {
-        store.screenStatus.localizedCaseInsensitiveContains("not found") ? .orange : .green
+        if edgeConnected { return .green }
+        if store.screenStatus.localizedCaseInsensitiveContains("not found") { return .orange }
+        return .secondary
     }
 
     private var edgeConnected: Bool {
-        !store.screenStatus.localizedCaseInsensitiveContains("not found")
+        store.screenStatus.hasPrefix("On ")
     }
 
     private var healthStatus: String {
-        edgeConnected ? "Looks good" : "Needs attention"
+        if edgeConnected { return "Looks good" }
+        if store.screenStatus == "XENEON not checked" { return "Check the display" }
+        return "Needs attention"
     }
 
     private var healthTint: Color {
-        edgeConnected ? .green : .orange
+        if edgeConnected { return .green }
+        if store.screenStatus == "XENEON not checked" { return .secondary }
+        return .orange
     }
 
     private var deviceBatterySubtitle: String {

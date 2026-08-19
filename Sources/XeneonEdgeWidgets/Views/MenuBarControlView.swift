@@ -120,15 +120,13 @@ struct MenuBarControlView: View {
 
     private func showControls() {
         openDashboard()
-
-        guard store.edgeMode else { return }
-        store.exitEdgeMode()
-
         Task { @MainActor in
+            // openWindow is asynchronous. Wait for ContentView to attach the
+            // existing dashboard window before leaving Edge mode, and issue one
+            // fullscreen transition instead of racing AppKit with a retry.
             try? await Task.sleep(for: .milliseconds(200))
-            if store.edgeMode {
-                store.exitEdgeMode()
-            }
+            guard store.edgeMode else { return }
+            store.exitEdgeMode()
         }
     }
 
