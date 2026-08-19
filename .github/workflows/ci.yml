@@ -6,14 +6,21 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
-    # Needs a Swift 6.3+ toolchain (see Package.swift); use the newest image.
+  macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Swift version
         run: swift --version
-      - name: Build
-        run: swift build
       - name: Test
         run: swift test
+      - name: Verify distribution inputs
+        run: bash script/verify_distribution_inputs.sh
+      - name: Assemble signed app bundle
+        env:
+          # CI has no Developer ID certificate. Ad-hoc signing still exercises
+          # nested signing and bundle verification without changing release signing.
+          XENEON_CODESIGN_IDENTITY: -
+        run: bash script/build_and_run.sh bundle
+      - name: Verify bundle signature and helper architectures
+        run: bash script/verify_bundle.sh dist/XeneonEdgeWidgets.app

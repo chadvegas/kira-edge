@@ -4,10 +4,19 @@ Direct-distribution release: a **notarized, stapled Developer ID DMG**. (The
 Mac App Store isn't targeted; direct distribution keeps the app dependency-free
 and instant to update.)
 
+The current release bundle is arm64 for Apple silicon. The Now Playing helper
+is built as arm64 + x86_64, but that does not make the containing app an Intel
+release.
+
 ## One-time setup (≈2 min)
 
 Requires an Apple Developer Program membership (for a "Developer ID
 Application" certificate).
+
+The release machine also needs macOS 14+, Xcode's Swift/Clang toolchain,
+`create-dmg`, and the checked-in `Vendor/mediaremote-adapter/SHA256SUMS`
+manifest. The release scripts fail before assembly if the Now Playing sources
+or any pinned vendor file is missing or modified.
 
 1. Create an **app-specific password** at
    <https://account.apple.com> → Sign-In & Security → App-Specific Passwords.
@@ -25,17 +34,18 @@ Application" certificate).
 ## Cut a release (one command)
 
 ```sh
-XENEON_VERSION=1.0.0 script/notarize_and_package.sh
+XENEON_VERSION=1.0.1 script/notarize_and_package.sh
 ```
 
 This builds a hardened-runtime bundle, notarizes + staples the app, wraps it in
 a signed + notarized + stapled DMG, and verifies Gatekeeper accepts both.
-Output: `dist/Kira Edge 1.0.0.dmg`. Bump `XENEON_VERSION` each release, then
+Output: `dist/Kira Edge 1.0.1.dmg`. Bump `XENEON_VERSION` each release, then
 attach the DMG to a GitHub Release.
 
-Because the DMG is notarized + stapled, it opens on any Mac with no
-"unidentified developer" warning — even offline. There are no permission
-prompts on first run.
+The script stages the app and DMG in temporary paths, keeps an existing final
+DMG until the new one passes `hdiutil verify`, stapler validation, and fatal
+Gatekeeper assessment, then promotes it into `dist/`. A passing release should
+open without an unidentified-developer warning.
 
 ## Notes
 
@@ -43,8 +53,8 @@ prompts on first run.
   that exact build.
 - If notarization is rejected, read why with:
   `xcrun notarytool log <submission-id> --keychain-profile xeneon-notary`
-- The signing identity is auto-discovered (`Developer ID Application` first,
-  then `Apple Development`); override with `XENEON_CODESIGN_IDENTITY`.
+- The release path requires a valid `Developer ID Application` identity and
+  auto-discovers it; override with `XENEON_CODESIGN_IDENTITY`.
 - Google Calendar in your build: either have users paste their own OAuth client
   ID (default), or hardcode your project's client ID in
   `GoogleAuthService.bundledClientID` and add users to your consent screen's

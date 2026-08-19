@@ -24,6 +24,7 @@ drive the whole thing.
 - **Note** — pinned text, per profile
 - **Web** — any site or dashboard in a tile (zoom, reload interval, desktop
   user-agent, readable-CSS injection)
+- **Now Playing** — system playback status, artwork, progress, and controls
 - **Power** — battery detail
 
 ## Features
@@ -44,7 +45,8 @@ drive the whole thing.
 
 ## Requirements
 
-- macOS 14 or later (Apple Silicon or Intel)
+- macOS 14 or later. The published release bundle is currently arm64 for Apple
+  silicon; it is not a universal Intel release.
 - Designed for the XENEON EDGE's 2560×720 panel, but runs on any display —
   without an Edge connected the dashboard is a normal resizable window
 - **A macOS touch-input driver to tap the Edge** — see
@@ -72,44 +74,37 @@ only component that does, and it's independent of this app.
 
 ## Install (no coding required)
 
-1. Download **`Kira-Edge.zip`** from the [**latest release**](../../releases/latest).
-2. **Double-click the download to unzip it** — you'll get an app called **Kira Edge**.
-3. **Drag Kira Edge into your Applications folder.**
-4. **Open it the first time.** Because Kira Edge is free and isn't run through
-   Apple's (paid) notarization service, macOS blocks the very first launch with a
-   message like *"Apple could not verify 'Kira Edge' is free of malware."* This is
-   expected — you clear it once:
-   - Open the **Apple menu () → System Settings → Privacy & Security**.
-   - Scroll down to **Security**. You'll see *"'Kira Edge' was blocked…"* with an
-     **Open Anyway** button — click it and confirm with Touch ID / your password.
-   - *(On macOS Sonoma or older, you can instead **right-click the app → Open →
-     Open**.)*
+1. Download the versioned **`Kira Edge <version>.dmg`** from the [latest
+   release](../../releases/latest).
+2. Open the DMG and drag **Kira Edge** into Applications.
+3. Open the app. A release produced by `script/notarize_and_package.sh` is
+   Developer ID signed, notarized, stapled, and Gatekeeper-validated. If you
+   are testing a locally built or unsigned ZIP instead, macOS may require an
+   explicit Open Anyway confirmation.
 
-That's a one-time step — after that, Kira Edge opens normally like any app. It
-asks for **no special permissions** (only optional Bluetooth for accessory
-batteries, and optional Google sign-in for calendar).
+The app has no Accessibility, Automation, or Screen Recording requirement.
+Bluetooth for accessory batteries and Google sign-in for calendar are optional.
 
 To put the dashboard on the strip, open Kira Edge and click its **menu-bar icon
 → Send to Edge** (or press ⌘⇧E). You'll also need a
 [touch-input driver](#touch-input-on-macos) to actually *tap* the panel.
 
-> **Is the warning safe to bypass?** The app is code-signed with a verified Apple
-> Developer ID (Chad Vegas, Team `6S5CDJFSNE`) — macOS just adds an extra prompt
-> for apps that skip paid notarization. If you'd rather not trust a download at
-> all, every line of source is in this repo; build it yourself below.
+Official releases should pass Gatekeeper without a bypass. For a local or
+unsigned artifact, verify its source and checksum before choosing Open Anyway.
 
 ## Build from source (developers)
 
 ```sh
 git clone https://github.com/chadvegas/kira-edge.git
 cd kira-edge
-swift build                     # library + tests
+swift build && swift test       # package build and tests
 script/build_and_run.sh run     # assemble the .app bundle, sign, launch
 script/install_app.sh           # install/refresh /Applications copy
 ```
 
-`swift test` runs the unit tests. See [SHIPPING.md](SHIPPING.md) to produce a
-notarized DMG of your own fork.
+The bundle scripts fail closed when the Now Playing Swift sources or the
+checksum-pinned `Vendor/mediaremote-adapter` tree is missing. See
+[SHIPPING.md](SHIPPING.md) to produce a notarized DMG of your own fork.
 
 The optional Apple Watch battery helper (`Helpers/xeneon-watch-battery.c`) is
 compiled automatically by `build_and_run.sh` when Homebrew `libimobiledevice`
@@ -143,7 +138,7 @@ Deck "Open" actions, Raycast, shell scripts, cron.
 | --- | --- |
 | `xeneonedge://profile/<name>` | Switch profile (`work`, `ai-ops`, `AI Ops`… all match) |
 | `xeneonedge://page/next` · `page/prev` · `page/<n>` | Page navigation (zero-based index) |
-| `xeneonedge://focus/<widget>` · `focus/clear` | Focus one widget full-screen / show all (`clock`, `system`, `power`, `launcher`, `note`, `web`) |
+| `xeneonedge://focus/<widget>` · `focus/clear` | Focus one widget full-screen / show all (`clock`, `system`, `power`, `launcher`, `note`, `web`, `media`) |
 | `xeneonedge://edge/send` | Move the dashboard to the XENEON Edge |
 | `xeneonedge://web/reload` | Reload every web tile |
 | `xeneonedge://appearance/dark` · `light` · `system` | Appearance mode |
