@@ -59,6 +59,16 @@ private func makeTestStore() -> DashboardStore {
     }
 }
 
+@Test func tapBridgeFlippedPointAlignsBaseAndGlobalSpaces() {
+    // A base point at the bottom of a 720pt window maps to the top in
+    // SwiftUI's `.global` space, and the flip is its own inverse.
+    let flipped = TileControlTapBridge.flippedPoint(base: CGPoint(x: 1509, y: 655), windowHeight: 720)
+    #expect(flipped == CGPoint(x: 1509, y: 65))
+
+    let roundTrip = TileControlTapBridge.flippedPoint(base: flipped, windowHeight: 720)
+    #expect(roundTrip == CGPoint(x: 1509, y: 655))
+}
+
 @Test func widgetCatalogCoversExpectedCategories() async throws {
     let categories = Set(WidgetCatalogItem.catalog.map(\.category))
 

@@ -4,10 +4,11 @@ struct WebWidgetView: View {
     let tile: WidgetTile
     let config: WebTileConfig
     let reloadToken: Int
+    let backToken: Int
 
     var body: some View {
         ZStack {
-            WebTileWebView(config: config, reloadToken: reloadToken)
+            WebTileWebView(config: config, reloadToken: reloadToken, backToken: backToken)
                 .clipShape(RoundedRectangle(cornerRadius: EdgeTheme.wellRadius, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: EdgeTheme.wellRadius, style: .continuous)
