@@ -14,6 +14,7 @@ private func isAllowedWebNavigationURL(_ url: URL?) -> Bool {
 struct WebTileWebView: NSViewRepresentable {
     let config: WebTileConfig
     let reloadToken: Int
+    let backToken: Int
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -66,6 +67,11 @@ struct WebTileWebView: NSViewRepresentable {
         if context.coordinator.lastReloadToken != reloadToken {
             context.coordinator.lastReloadToken = reloadToken
             webView.reload()
+        }
+
+        if context.coordinator.lastBackToken != backToken {
+            context.coordinator.lastBackToken = backToken
+            webView.goBack()
         }
     }
 
@@ -461,6 +467,7 @@ struct WebTileWebView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var lastReloadToken = 0
+        var lastBackToken = 0
         var lastRequestedURL: URL?
         var forcesMobileYouTube = false
         var injectsReadableCSS = false

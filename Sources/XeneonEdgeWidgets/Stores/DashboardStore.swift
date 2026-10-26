@@ -72,6 +72,7 @@ final class DashboardStore {
     /// Mirrors SMAppService.mainApp registration; synced from the real status.
     var launchAtLoginEnabled = false
     var webReloadTokens: [UUID: Int] = [:]
+    var webBackTokens: [UUID: Int] = [:]
     var stats = SystemSnapshot.empty
     var harnessUsage = HarnessUsageSnapshot.empty
     var weather = WeatherSnapshot.empty
@@ -1150,6 +1151,11 @@ final class DashboardStore {
     func reloadWebTile(_ tile: WidgetTile) {
         webReloadTokens[tile.id, default: 0] += 1
         actionStatus = "Reloaded \(tile.displayTitle)"
+    }
+
+    func goBackInWebTile(_ tile: WidgetTile) {
+        webBackTokens[tile.id, default: 0] += 1
+        actionStatus = "Went back in \(tile.displayTitle)"
     }
 
     func reloadAllWebTiles() {

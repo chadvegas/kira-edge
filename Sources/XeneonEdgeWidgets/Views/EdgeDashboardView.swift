@@ -466,7 +466,8 @@ struct WidgetTileView: View {
                             WebWidgetView(
                                 tile: tile,
                                 config: config,
-                                reloadToken: store.webReloadTokens[tile.id, default: 0]
+                                reloadToken: store.webReloadTokens[tile.id, default: 0],
+                                backToken: store.webBackTokens[tile.id, default: 0]
                             )
                         }
                     }
@@ -648,6 +649,10 @@ private struct WebTileHeaderControls: View {
                 HeaderMetaPill(symbolName: "circle.fill", text: "LIVE", accent: tile.accentColor)
 
                 EdgeTileControlGroup {
+                    EdgeTileControlButton(symbolName: "chevron.backward", helpText: "Go back in web widget") {
+                        store.goBackInWebTile(tile)
+                    }
+
                     EdgeTileControlButton(symbolName: "arrow.clockwise", helpText: "Reload web widget") {
                         store.reloadWebTile(tile)
                     }
@@ -659,6 +664,10 @@ private struct WebTileHeaderControls: View {
             }
 
             EdgeTileControlGroup {
+                EdgeTileControlButton(symbolName: "chevron.backward", helpText: "Go back in web widget") {
+                    store.goBackInWebTile(tile)
+                }
+
                 EdgeTileControlButton(symbolName: "arrow.clockwise", helpText: "Reload web widget") {
                     store.reloadWebTile(tile)
                 }
@@ -1051,6 +1060,13 @@ struct EdgeTileControlButton: View {
     var isDestructive = false
     let action: () -> Void
 
+    // Clicks are routed via TileControlTapBridge: macOS 26+ mis-places the
+    // hit-test region of platform views (the web tile's WKWebView), which
+    // otherwise swallows clicks meant for these buttons. See that type for
+    // details. The SwiftUI Button below stays for rendering, hover help,
+    // and accessibility activation.
+    @State private var tapID = UUID()
+
     var body: some View {
         Button(role: role, action: action) {
             Image(systemName: symbolName)
@@ -1068,6 +1084,9 @@ struct EdgeTileControlButton: View {
         .help(helpText)
         .accessibilityLabel(helpText)
         .accessibilityHint("Activates this widget control.")
+        .background(
+            TileControlTapRegistration(id: tapID, action: action)
+        )
     }
 }
 
